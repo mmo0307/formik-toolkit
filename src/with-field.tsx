@@ -1,31 +1,18 @@
 import { useFormikContext } from 'formik';
-import React, { useCallback } from 'react';
+import React, { useCallback, ComponentType } from 'react';
 import { get } from 'object-path';
 import { FormikStatus } from './status';
-import { ComponentType } from 'enzyme';
 
-/**
- * Field props
- */
 type Props = {
   value?: any;
-
   error?: any;
-
   isError?: any;
-
   onTouch?: any;
-
   onChange?: any;
-
   touched?: any;
-
   disabled?: any;
 };
 
-/**
- * Use field props
- */
 const useFieldProps = (name: string, props: any) => {
   const {
     values,
@@ -42,23 +29,22 @@ const useFieldProps = (name: string, props: any) => {
   const statusError = get(status, 'errors' + '.' + name);
   const error = get(errors, name) || statusError;
   const isError = submitCount > 0 && error != undefined && error != null;
-  const value = get(values, name);
+  const value = get(values, name) ?? ''; // Default to empty string if null or undefined
   const { hooks } = props as any;
 
   const onChange = useCallback(
-     async (value: any) => {
-      await setFieldValue(name, value);
-
-      hooks?.change(value);
-    },
-    [setFieldValue, name, value, hooks?.change]
+      async (value: any) => {
+        await setFieldValue(name, value);
+        hooks?.change(value);
+      },
+      [setFieldValue, name, hooks?.change]
   );
 
   const onTouch = useCallback(
-    async (touched = true) => {
-      await setFieldTouched(name, touched);
-    },
-    [name, setFieldTouched]
+      async (touched = true) => {
+        await setFieldTouched(name, touched);
+      },
+      [name, setFieldTouched]
   );
 
   return {
@@ -73,12 +59,8 @@ const useFieldProps = (name: string, props: any) => {
   };
 };
 
-/**
- * Wrap component with field data provided
- */
-function withField<P extends Props>(source: ComponentType<P>) {
-  const Result: any = source;
-  const result: React.FC<{ name: string }> = props => {
+function withField<P extends Props>(Component: ComponentType<P>) {
+  const Result: React.FC<{ name: string } & Omit<P, keyof Props>> = (props) => {
     const {
       value,
       error,
@@ -91,27 +73,26 @@ function withField<P extends Props>(source: ComponentType<P>) {
     } = useFieldProps(props.name, props);
 
     return (
-      <Result
-        value={value}
-        error={error}
-        isError={isError}
-        onTouch={onTouch}
-        onChange={onChange}
-        touched={get(touched, name as any)}
-        disabled={isSubmitting || get(status, 'disabled')}
-        {...props}
-      />
+        <Component
+            value={value}
+            error={error}
+            isError={isError}
+            onTouch={onTouch}
+            onChange={onChange}
+            touched={get(touched, props.name as any)}
+            disabled={isSubmitting || get(status, 'disabled')}
+            {...(props as unknown as P)}
+        />
     );
   };
 
-  return (result as any) as ComponentType<
-    {
-      name: string;
-      hooks?: {
-        change?: (value: any) => any;
-      };
-    } & Omit<P, keyof Props> &
-      Partial<Pick<P, keyof Props>>
+  return Result as ComponentType<
+      {
+        name: string;
+        hooks?: {
+          change?: (value: any) => any;
+        };
+      } & Omit<P, keyof Props>
   >;
 }
 
